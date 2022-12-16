@@ -4,12 +4,11 @@ import { EventsService } from './events.service';
 
 @Controller('balances')
 export class BalancesController {
-  constructor(private readonly balancesService: BalancesService,
-              private readonly eventsService: EventsService) {}
+  constructor(private readonly balancesService: BalancesService, private  readonly eventService:EventsService) {}
 
-  @Sse('events_rewards')
-  events() {
-    return this.eventsService.subscribe('rewards');
+  @Sse('user-level-up')
+  rewards() {
+    return this.eventService.subscribe('user-level-up');
   }
 
   @Get()

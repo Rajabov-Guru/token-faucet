@@ -20,7 +20,7 @@ export class BalanceRewardsListener {
     if(Math.floor(exp/100)!==level-1){
       user.level +=1;
       await this.userService.save(user);
-      await this.eventsService.emit("rewards",{eventType:"rewards"});
+      await this.eventsService.emit("user-level-up",{eventType:"user-level-up"});
     }
   }
 }
