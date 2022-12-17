@@ -8,6 +8,8 @@ import { HandfaucetsModule } from './handfaucets/handfaucets.module';
 import { AuthModule } from './auth/auth.module';
 import { ConfigModule } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { EventsService } from './events.service';
+import { AppController } from './app.controller';
 
 @Module({
   imports: [
@@ -22,8 +24,8 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
     HandfaucetsModule,
     AuthModule
   ],
-  controllers: [],
-  providers: [],
-  exports:[]
+  controllers: [AppController],
+  providers: [EventsService],
+  exports:[EventsService]
 })
 export class AppModule {}

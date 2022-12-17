@@ -8,7 +8,7 @@ import { BalancesService } from '../balances/balances.service';
 import { HandfaucetsService } from '../handfaucets/handfaucets.service';
 import { Balance } from '../balances/entities/balance.entity';
 import { Handfaucet } from '../handfaucets/entities/handfaucet.entity';
-import { handfaucetSettings } from '../helpers/faucet.settings';
+import { getSettings, handfaucetSettings } from '../helpers/faucet.settings';
 import { SetRewardDto } from '../balances/dto/set-reward.dto';
 
 @Injectable()
@@ -63,10 +63,6 @@ export class UsersService {
     return user.handfaucet;
   }
 
-  private getSettings(level:number){
-    return handfaucetSettings.filter(set=>set.level===level)[0];
-  }
-
   async setRewards(id:number){
     const user = await this.userRepository.findOne({
       where:{
@@ -81,7 +77,7 @@ export class UsersService {
     const balance = user.balance;
     const handfaucet = user.handfaucet;
 
-    const settings = this.getSettings(handfaucet.level);
+    const settings = getSettings(handfaucet.level);
     const rewards = settings.rewards;
 
     const bonuses = rewards.levelBonus;

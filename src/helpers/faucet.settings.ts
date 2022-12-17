@@ -17,6 +17,10 @@ interface VipDiscount{
   discount:number;
 }
 
+export const getSettings = (level:number)=>{
+  return handfaucetSettings.filter(set=>set.level===level)[0];
+}
+
 export const handfaucetSettings:FaucetSetting[] = [
   {
     level:1,

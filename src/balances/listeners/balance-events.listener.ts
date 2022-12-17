@@ -2,10 +2,10 @@ import { Inject, Injectable } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { BalanceRewardsEvent } from '../events/balance-rewards.event';
 import { UsersService } from '../../users/users.service';
-import { EventsService } from '../events.service';
+import { EventsService } from '../../events.service';
 
 @Injectable()
-export class BalanceRewardsListener {
+export class BalanceEventsListener {
   @Inject(UsersService)
   private readonly userService:UsersService;
 
@@ -20,7 +20,7 @@ export class BalanceRewardsListener {
     if(Math.floor(exp/100)!==level-1){
       user.level +=1;
       await this.userService.save(user);
-      await this.eventsService.emit("user-level-up",{eventType:"user-level-up"});
+      await this.eventsService.emit(`${user.id}.user-level-up`,{eventType:`${user.id}.user-level-up`});
     }
   }
 }
