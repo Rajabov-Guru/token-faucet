@@ -1,20 +1,12 @@
-import { Controller, Get, Param, Sse } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Sse } from '@nestjs/common';
 import { HandfaucetsService } from './handfaucets.service';
-import { EventsService } from '../events.service';
+import { SetTimestartDto } from './dto/set-timestart.dto';
 
 
 @Controller('handfaucets')
 export class HandfaucetsController {
 
-  constructor(private readonly handfaucetsService: HandfaucetsService,
-              private readonly eventService:EventsService) {}
-
-
-  @Sse(':id/faucet-level-up')
-  faucetLevel(@Param('id') id:string){
-    const userId = +id;
-    return this.eventService.subscribe(`${userId}.faucet-level-up`);
-  }
+  constructor(private readonly handfaucetsService: HandfaucetsService){}
 
   @Get()
   findAll() {
@@ -23,7 +15,9 @@ export class HandfaucetsController {
 
   @Get(':id')
   findOne(@Param('id') id: string) {
-    return this.handfaucetsService.findOne(+id);
+    return this.handfaucetsService.findOne(+id);//
   }
+
+
 
 }

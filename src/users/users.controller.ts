@@ -14,6 +14,18 @@ export class UsersController {
     return this.usersService.create(createUserDto);
   }
 
+  @Get(':id/referer')
+  async getReferer(@Param('id') id: string) {
+    const referer = await this.usersService.getReferer(+id);
+    return referer;
+  }
+
+  @Get(':id/referals')
+  async getReferals(@Param('id') id: string) {
+    const referals = await this.usersService.getReferals(+id);
+    return referals;
+  }
+
   @Get(':id/balance')
   async getBalance(@Param('id') id: string) {
     const balance = await this.usersService.getBalance(+id);
@@ -26,10 +38,21 @@ export class UsersController {
     return faucet;
   }
 
+  @Get(':id/autofaucet')
+  async getAutoFaucet(@Param('id') id: string) {
+    const faucet = await this.usersService.getAutoFaucet(+id)
+    return faucet;
+  }
+
   @Post(':id/reward')
   async setReward(@Param('id') id: string){
     const res = await this.usersService.setRewards(+id);
     return res;
+  }
+
+  @Post(':id/autofaucet/activate')
+  async activateAutoFaucetByEnergy(@Param('id') id: string){
+    return this.usersService.activateAutoFaucetByEnergy(+id);
   }
 
   @Get()

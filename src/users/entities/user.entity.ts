@@ -6,12 +6,13 @@ import {
   ManyToMany,
   JoinTable,
   JoinColumn,
-  CreateDateColumn,
+  CreateDateColumn, ManyToOne, OneToMany,
 } from 'typeorm';
 import { Bonus } from '../../bonuses/entities/bonus.entity';
 import { Balance } from '../../balances/entities/balance.entity';
 import { Handfaucet } from '../../handfaucets/entities/handfaucet.entity';
 import Token from '../../auth/entities/token.entity';
+import { Autofaucet } from '../../autofaucets/entities/autofaucet.entity';
 
 @Entity()
 export class User {
@@ -33,17 +34,23 @@ export class User {
   @Column()
   secret: number;
 
-  @Column({default:0})
+  @Column({default:10})
   rating: number;
 
   @Column({default:false})
-  isRef: boolean;
+  isReferal: boolean;
 
   @Column({default:1})
   level: number;
 
   @CreateDateColumn()
   created_at: Date;
+
+  @ManyToOne((type) => User, (user) => user.referals)
+  referer: User
+
+  @OneToMany((type) => User, (user) => user.referer)
+  referals: User[]
 
   @OneToOne(()=>Token,token=>token.user,{cascade:true })
   token: Token;
@@ -53,6 +60,9 @@ export class User {
 
   @OneToOne(()=>Handfaucet,faucet=>faucet.user,{cascade:true })
   handfaucet: Handfaucet;
+
+  @OneToOne(()=>Autofaucet,autofaucet=>autofaucet.user,{cascade:true })
+  autofaucet: Autofaucet;
 
   @ManyToMany(() => Bonus,{cascade:true })
   bonuses: Bonus[]

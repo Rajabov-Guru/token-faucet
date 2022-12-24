@@ -2,15 +2,18 @@ import { Column, Entity, JoinColumn, OneToOne, PrimaryGeneratedColumn } from 'ty
 import { User } from '../../users/entities/user.entity';
 
 @Entity()
-export class Handfaucet {
+export class Autofaucet {
   @PrimaryGeneratedColumn()
   id:number;
 
   @Column({default:1})
   level:number;
 
-  @Column({default:false})
-  vip:boolean;
+  @Column({default:0})
+  spentTime:number;
+
+  @Column({default:0})
+  timeBalance:number
 
   @Column({default:null, nullable:true})
   timerStart:Date;
@@ -19,15 +22,19 @@ export class Handfaucet {
   timerAmount:number;
 
   @Column({default:0})
+  rewardCount:number;
+
+  @Column({default:0})
   clicks:number;
 
-  @Column({default:0})
-  tokens:number;
+  @Column({default:0})//
+  satoshi:number;
 
-  @Column({default:0})
-  energy:number;
+  @Column({default:false})
+  activated:boolean;
 
   @OneToOne(()=>User)
   @JoinColumn()
   user: User;
+
 }

@@ -6,13 +6,15 @@ import { User } from './entities/user.entity';
 import { BalancesModule } from '../balances/balances.module';
 import { HandfaucetsModule } from '../handfaucets/handfaucets.module';
 import { AuthModule } from '../auth/auth.module';
+import { AutofaucetsModule } from '../autofaucets/autofaucets.module';
 
 @Module({
   imports:[
     forwardRef(()=>AuthModule),
     TypeOrmModule.forFeature([User]),
     BalancesModule,
-    HandfaucetsModule],
+    HandfaucetsModule,
+  AutofaucetsModule],
 
   controllers: [UsersController],
   providers: [UsersService],

@@ -1,17 +1,17 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { EventsService } from '../../events.service';
 import { OnEvent } from '@nestjs/event-emitter';
 import { FaucetLevelEvent } from '../events/faucet-level.event';
 import { HandfaucetsService } from '../handfaucets.service';
-import { getSettings, handfaucetSettings } from '../../helpers/faucet.settings';
+import { getSettings } from '../../settings/faucet.settings';
+import { NotificationsService } from '../../events/notifications.service';
 
 @Injectable()
 export class HandfaucetEventsListener {
   @Inject(HandfaucetsService)
   private readonly faucetService:HandfaucetsService;
 
-  @Inject(EventsService)
-  private readonly eventsService: EventsService;
+  @Inject(NotificationsService)
+  private readonly notificationsService: NotificationsService;
 
   @OnEvent('faucet.addTokens', {async:true})//чекать уровень аккаунта
   async handleRewardsEvent(event:FaucetLevelEvent) {
@@ -21,7 +21,7 @@ export class HandfaucetEventsListener {
     if(faucet.clicks >= settings.requiredClicks){
       faucet.level = settings.level;
       await this.faucetService.save(faucet);
-      await this.eventsService.emit(`${event.userId}.faucet-level-up`,{eventType:`${event.userId}.faucet-level-up`});
+      await this.notificationsService.emitNotification(`${event.userId}.notifications`,{eventType:`faucet-level-up`});
     }
   }
 }

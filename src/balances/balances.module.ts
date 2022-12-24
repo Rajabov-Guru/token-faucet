@@ -5,14 +5,16 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Balance } from './entities/balance.entity';
 import { BalanceEventsListener } from './listeners/balance-events.listener';
 import { UsersModule } from '../users/users.module';
-import { EventsService } from '../events.service';
+import { EventsModule } from '../events/events.module';
+import { NotificationsService } from '../events/notifications.service';
 
 @Module({
   imports:[
+    EventsModule,
     forwardRef(()=>UsersModule),
     TypeOrmModule.forFeature([Balance])],
   controllers: [BalancesController],
-  providers: [BalancesService, BalanceEventsListener, EventsService],
+  providers: [BalancesService, NotificationsService,BalanceEventsListener],
   exports:[BalancesService]
 })
 export class BalancesModule {}

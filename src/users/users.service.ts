@@ -8,8 +8,12 @@ import { BalancesService } from '../balances/balances.service';
 import { HandfaucetsService } from '../handfaucets/handfaucets.service';
 import { Balance } from '../balances/entities/balance.entity';
 import { Handfaucet } from '../handfaucets/entities/handfaucet.entity';
-import { getSettings, handfaucetSettings } from '../helpers/faucet.settings';
+import { getSettings, handfaucetSettings } from '../settings/faucet.settings';
 import { SetRewardDto } from '../balances/dto/set-reward.dto';
+import { Autofaucet } from '../autofaucets/entities/autofaucet.entity';
+import { AutofaucetsService } from '../autofaucets/autofaucets.service';
+import { ActivateByEnergyDto } from '../autofaucets/dto/activate-by-energy.dto';
+import { getAutoSettings } from '../settings/autofaucet.settings';
 
 @Injectable()
 export class UsersService {
@@ -19,12 +23,22 @@ export class UsersService {
   @Inject(HandfaucetsService)
   private readonly handfaucetService:HandfaucetsService;
 
+  @Inject(AutofaucetsService)
+  private readonly autofaucetService:AutofaucetsService;
+
   constructor(@InjectRepository(User) private userRepository: Repository<User>) {
   }
 
   async create(createUserDto: CreateUserDto) {
     const newUser = createUserDto as User;
     await this.userRepository.save(newUser);
+
+    if(createUserDto.refererLogin){
+      const referer = await this.findByLogin(createUserDto.refererLogin);
+      newUser.referer = referer;
+      newUser.isReferal = true;
+      await this.userRepository.save(newUser);
+    }
 
     const balance = new Balance();
     balance.user = newUser;
@@ -34,13 +48,37 @@ export class UsersService {
     handfaucet.user = newUser;
     await this.handfaucetService.save(handfaucet);
 
+    const autofaucet = new Autofaucet();
+    autofaucet.user = newUser;
+    await this.autofaucetService.save(autofaucet);
+
     //bonuses
-    return newUser;
+    return this.userRepository.save(newUser);
 
   }
 
   async findAll() {
     return this.userRepository.find();
+  }
+
+  async getReferer(id:number){
+    const user = await this.userRepository.findOne({
+      where:{id},
+      relations:{
+        referer:true
+      }
+    });
+    return user.referer;
+  }
+
+  async getReferals(id:number){
+    const user = await this.userRepository.findOne({
+      where:{id},
+      relations:{
+        referals:true
+      }
+    });
+    return user.referals;
   }
 
   async getBalance(id:number){
@@ -61,6 +99,33 @@ export class UsersService {
       }
     });
     return user.handfaucet;
+  }
+
+  async getAutoFaucet(id:number){
+    const user = await this.userRepository.findOne({
+      where:{id},
+      relations:{
+        autofaucet:true
+      }
+    });
+    return user.autofaucet;
+  }
+
+  async activateAutoFaucetByEnergy(userId:number){
+    const user = await this.userRepository.findOne({
+      where: {
+        id:userId
+      },
+      relations:{
+          balance:true,
+          autofaucet:true,
+      }
+    });
+
+    const energy = user.balance.energy;
+    user.balance.energy = 0;
+    await this.balanceService.save(user.balance);
+    return this.autofaucetService.activateByEnergy({id:user.autofaucet.id,energy});
   }
 
   async setRewards(id:number){
@@ -96,27 +161,46 @@ export class UsersService {
       clicks
     }
     const res = await this.balanceService.setRewards(balance.id,data);
-    await this.handfaucetService.addTokens(handfaucet.id,tokens);
-    // await this.checkLevel(id);
+    await this.handfaucetService.addTokens(handfaucet.id,tokens,energy);
     return res;
   }
 
-  private async checkLevel(id:number){
+
+  async setAutoRewards(id:number){
     const user = await this.userRepository.findOne({
       where:{
         id
       },
       relations:{
+        autofaucet:true,
         balance:true,
       }
     });
-    const exp = user.balance.experience;
-    const level = user.level;
-    if(Math.floor(exp/100)!==level-1){
-      user.level +=1;
-      await this.userRepository.save(user);
 
+    const balance = user.balance;
+    const autofaucet = user.autofaucet;
+
+    const settings = getAutoSettings(autofaucet.level);
+    const rewards = settings.rewards;
+
+    const bonuses = rewards.levelBonus;
+    const base = rewards.base;
+    const experience = rewards.experience;
+    const energy = 0;
+    const tokens = 0;
+    const clicks = 0;
+    const satoshi = base+(base / 100 * bonuses)
+
+    const data:SetRewardDto={
+      tokens,
+      experience,
+      energy,
+      satoshi,
+      clicks
     }
+    const res = await this.balanceService.setRewards(balance.id,data);
+    await this.autofaucetService.addSatoshi(autofaucet.id,satoshi);
+    return res;
   }
 
   async getToken(id:number){
@@ -135,6 +219,10 @@ export class UsersService {
 
   findByEmail(email:string){
     return this.userRepository.findOneBy({email});
+  }
+
+  findByLogin(login:string){
+    return this.userRepository.findOneBy({login});
   }
 
   async update(id: number, updateUserDto: UpdateUserDto) {

@@ -3,6 +3,8 @@ import { AuthService } from './auth.service';
 import { CreateUserDto } from '../users/dto/create-user.dto';
 import { GetCookies } from '../decorators/cookies.decorator';
 import { Response } from 'express';
+import { CheckUserDataDto } from './dto/check-user-data.dto';
+import { RecoveryDto } from './dto/recovery.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -36,5 +38,17 @@ export class AuthController {
     const userData = await this.authService.refresh(refreshToken);
     response.cookie('refreshToken', userData.refreshToken, {maxAge: 30 * 24 * 60 * 60 * 1000, httpOnly: true})
     return userData;
+  }
+
+  @Post('/check_recovery')
+  async checkRecovery(@Body() dto:CheckUserDataDto, @Res({passthrough: true}) response: Response){
+    const result = await this.authService.checkUserData(dto);
+    return result;
+  }
+
+  @Post('/recovery')
+  async recovery(@Body() dto:RecoveryDto, @Res({passthrough: true}) response: Response){
+    const result = await this.authService.recovery(dto);
+    return result;
   }
 }

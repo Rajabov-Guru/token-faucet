@@ -2,150 +2,146 @@ interface Rewards{
   base:number;
   levelBonus:number;
   experience:number;
-  energy:number;
 }
 
-interface FaucetSetting{
+interface AutoFaucetSetting{
   level:number;
   requiredClicks:number;
-  vipCost:number;
+  subscriptionCost:number;
   rewards:Rewards;
 }
 
-interface VipDiscount{
+interface AutoFaucetGeneralSetting{
+  secondsForOneSatoshi:number;
+}
+
+export const getAutoSettings = (level:number)=>{
+  return autofaucetSettings.filter(set=>set.level===level)[0];
+}
+
+interface SubscriptionDiscount{
   monthCount:number;
   discount:number;
 }
 
-export const getSettings = (level:number)=>{
-  return handfaucetSettings.filter(set=>set.level===level)[0];
-}
+export const autoFaucetGeneralSettings:AutoFaucetGeneralSetting = {
+  secondsForOneSatoshi:30,
+};
 
-export const handfaucetSettings:FaucetSetting[] = [
+export const autofaucetSettings:AutoFaucetSetting[] = [
   {
     level:1,
     requiredClicks:0,
-    vipCost:1000,
+    subscriptionCost:1000,
     rewards:{
       base:10,
       levelBonus:0,
       experience:10,
-      energy:10,
     }
   },
   {
     level:2,
     requiredClicks:1,
-    vipCost:10000,
+    subscriptionCost:10000,
     rewards:{
       base:10,
-      levelBonus:10,
+      levelBonus:15,
       experience:10,
-      energy:10,
     }
   },
   {
     level:3,
     requiredClicks:10,
-    vipCost:50000,
+    subscriptionCost:50000,
     rewards:{
       base:20,
-      levelBonus:20,
+      levelBonus:25,
       experience:12,
-      energy:11,
     }
   },
   {
     level:4,
     requiredClicks:100,
-    vipCost:100000,
+    subscriptionCost:100000,
     rewards:{
       base:50,
-      levelBonus:30,
+      levelBonus:35,
       experience:15,
-      energy:12,
     }
   },
   {
     level:5,
     requiredClicks:1000,
-    vipCost:500000,
+    subscriptionCost:500000,
     rewards:{
       base:100,
-      levelBonus:40,
+      levelBonus:45,
       experience:20,
-      energy:13,
     }
   },
   {
     level:6,
     requiredClicks:10000,
-    vipCost:1000000,
+    subscriptionCost:1000000,
     rewards:{
       base:500,
-      levelBonus:50,
+      levelBonus:55,
       experience:25,
-      energy:14,
     }
   },
   {
     level:7,
     requiredClicks:100000,
-    vipCost:5000000,
+    subscriptionCost:5000000,
     rewards:{
       base:5000,
-      levelBonus:60,
+      levelBonus:65,
       experience:32,
-      energy:15,
     }
   },
   {
     level:8,
     requiredClicks:1000000,
-    vipCost:10000000,
+    subscriptionCost:10000000,
     rewards:{
       base:100000,
-      levelBonus:70,
+      levelBonus:75,
       experience:40,
-      energy:16,
     }
   },
   {
     level:9,
     requiredClicks:10000000,
-    vipCost:50000000,
+    subscriptionCost:50000000,
     rewards:{
       base:500000,
       levelBonus:85,
       experience:45,
-      energy:17,
     }
   },
   {
     level:10,
     requiredClicks:100000000,
-    vipCost:100000000,
+    subscriptionCost:100000000,
     rewards:{
       base:1000000,
-      levelBonus:100,
+      levelBonus:105,
       experience:50,
-      energy:18,
     }
   },
   {
     level:11,
     requiredClicks:1000000000,
-    vipCost:1000000000,
+    subscriptionCost:1000000000,
     rewards:{
       base:2000000,
-      levelBonus:110,
+      levelBonus:115,
       experience:60,
-      energy:20,
     }
   },
-]
+];
 
-export const VIPDiscount:VipDiscount[] = [
+export const DiscountOnSubscription:SubscriptionDiscount[] = [
   {
     monthCount:1,
     discount:0,

@@ -8,11 +8,13 @@ import { HandfaucetsModule } from './handfaucets/handfaucets.module';
 import { AuthModule } from './auth/auth.module';
 import { ConfigModule } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
-import { EventsService } from './events.service';
-import { AppController } from './app.controller';
+import { EventsModule } from './events/events.module';
+import { ScheduleModule } from '@nestjs/schedule';
+import { AutofaucetsModule } from './autofaucets/autofaucets.module';
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
     EventEmitterModule.forRoot(),
     ConfigModule.forRoot({
       envFilePath:`.${process.env.NODE_ENV}.env`
@@ -22,10 +24,12 @@ import { AppController } from './app.controller';
     BalancesModule,
     BonusesModule,
     HandfaucetsModule,
-    AuthModule
+    AuthModule,
+    EventsModule,
+    AutofaucetsModule
   ],
-  controllers: [AppController],
-  providers: [EventsService],
-  exports:[EventsService]
+  controllers: [],
+  providers: [],
+  exports:[]
 })
 export class AppModule {}

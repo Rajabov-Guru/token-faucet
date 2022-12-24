@@ -7,6 +7,9 @@ import { User } from '../users/entities/user.entity';
 import Token from './entities/token.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { RecoveryDto } from './dto/recovery.dto';
+import { CheckResultDto } from './dto/check-result.dto';
+import { CheckUserDataDto } from './dto/check-user-data.dto';
 
 @Injectable()
 export class AuthService {
@@ -30,9 +33,7 @@ export class AuthService {
     if (!isPassEquals) {
       throw new HttpException("Invalid password", HttpStatus.BAD_REQUEST)
     }
-
     const tokens = await this.generateTokens(user);
-
     await this.saveToken(user.id, tokens.refreshToken);
     return {...tokens, user: user}
   }
@@ -52,9 +53,7 @@ export class AuthService {
       throw new HttpException("Invalid token2", HttpStatus.UNAUTHORIZED);
     }
     const user = await this.userService.findOne(userData.id);
-
     const tokens = await this.generateTokens(user);
-
     await this.saveToken(user.id, tokens.refreshToken);
     return {...tokens, user}
   }
@@ -66,20 +65,33 @@ export class AuthService {
     }
     const hashPassword = await bcrypt.hash(dto.password, 3);
     const user = await this.userService.create({...dto, password:hashPassword});
-
     const tokens = await this.generateTokens(user);
     await this.saveToken(user.id, tokens.refreshToken);
-
     return {...tokens, user};
   }
 
+  async checkUserData(dto:CheckUserDataDto){
+    const candidate = await this.userService.findByEmail(dto.email);
+    const result = new CheckResultDto();
+    if (candidate && candidate.secret === dto.secret) {
+      result.success = true;
+    }
+    return result;
 
+  }
+
+  async recovery(dto:RecoveryDto){
+    const user = await this.userService.findByEmail(dto.email);
+    const hashPassword = await bcrypt.hash(dto.password, 3);
+    user.password = hashPassword;
+    return await this.userService.save(user);
+  }
 
   private async generateTokens(user:User){
     const payload = {login:user.login,id:user.id};
     return {
-      accessToken: this.jwtService.sign(payload,{secret: process.env.JWT_ACCESS_SECRET, expiresIn:'60s'}),
-      refreshToken: this.jwtService.sign(payload,{secret: process.env.JWT_REFRESH_SECRET, expiresIn:'1h'})
+      accessToken: this.jwtService.sign(payload,{secret: process.env.JWT_ACCESS_SECRET, expiresIn:'30d'}),
+      refreshToken: this.jwtService.sign(payload,{secret: process.env.JWT_REFRESH_SECRET, expiresIn:'24h'})
     };
   }
 
