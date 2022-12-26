@@ -11,10 +11,10 @@ import { AutofaucetsModule } from '../autofaucets/autofaucets.module';
 @Module({
   imports:[
     forwardRef(()=>AuthModule),
+    forwardRef(()=>AutofaucetsModule),
     TypeOrmModule.forFeature([User]),
     BalancesModule,
-    HandfaucetsModule,
-  AutofaucetsModule],
+    HandfaucetsModule],
 
   controllers: [UsersController],
   providers: [UsersService],

@@ -1,29 +1,24 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Sse } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param } from '@nestjs/common';
 import { UsersService } from './users.service';
-import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
-
-
-  @Post()/////Убрать потом
-  create(@Body() createUserDto: CreateUserDto) {
-    return this.usersService.create(createUserDto);
+  @Get()
+  findAll() {
+    return this.usersService.findAll();
   }
 
-  @Get(':id/referer')
-  async getReferer(@Param('id') id: string) {
-    const referer = await this.usersService.getReferer(+id);
-    return referer;
+  @Get(':id')
+  findOne(@Param('id') id: string) {
+    return this.usersService.findOne(+id);
   }
 
-  @Get(':id/referals')
-  async getReferals(@Param('id') id: string) {
-    const referals = await this.usersService.getReferals(+id);
-    return referals;
+  @Patch(':id')
+  update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
+    return this.usersService.update(+id, updateUserDto);
   }
 
   @Get(':id/balance')
@@ -44,6 +39,18 @@ export class UsersController {
     return faucet;
   }
 
+  @Get(':id/referer')
+  async getReferer(@Param('id') id: string) {
+    const referer = await this.usersService.getReferer(+id);
+    return referer;
+  }
+
+  @Get(':id/referals')
+  async getReferals(@Param('id') id: string) {
+    const referals = await this.usersService.getReferals(+id);
+    return referals;
+  }
+
   @Post(':id/reward')
   async setReward(@Param('id') id: string){
     const res = await this.usersService.setRewards(+id);
@@ -55,19 +62,5 @@ export class UsersController {
     return this.usersService.activateAutoFaucetByEnergy(+id);
   }
 
-  @Get()
-  findAll() {
-    return this.usersService.findAll();
-  }
-
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.usersService.findOne(+id);
-  }
-
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
-    return this.usersService.update(+id, updateUserDto);
-  }
 
 }

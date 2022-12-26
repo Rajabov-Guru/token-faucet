@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { Autofaucet } from './entities/autofaucet.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -7,12 +7,23 @@ import { autoFaucetGeneralSettings } from '../settings/autofaucet.settings';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { AutofaucetLevelEvent } from './events/autofaucet-level.event';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { UsersService } from '../users/users.service';
 
 @Injectable()
 export class AutofaucetsService {
-  constructor(@InjectRepository(Autofaucet) private autofaucetRepository:Repository<Autofaucet>,
-              private eventEmitter: EventEmitter2,
-              private schedulerRegistry: SchedulerRegistry) {
+  @InjectRepository(Autofaucet)
+  private autofaucetRepository:Repository<Autofaucet>;
+
+  @Inject(forwardRef(()=>UsersService))
+  private readonly userService:UsersService;
+
+  @Inject(EventEmitter2)
+  private eventEmitter: EventEmitter2;
+
+  @Inject(SchedulerRegistry)
+  private schedulerRegistry: SchedulerRegistry;
+
+  constructor() {
   }
 
   findAll() {
@@ -25,6 +36,17 @@ export class AutofaucetsService {
 
   async save(autofaucet:Autofaucet){
     return this.autofaucetRepository.save(autofaucet);
+  }
+
+  async getUser(id:number){
+    const autofaucet = await this.autofaucetRepository.findOne({
+      where:{id},
+      relations:{
+        user:true,
+      }
+    });
+
+    return autofaucet.user;
   }
 
   async addSatoshi(id:number, satoshi:number){
@@ -83,7 +105,9 @@ export class AutofaucetsService {
         this.schedulerRegistry.deleteInterval(name);
         return;
       }
+      const user = await this.getUser(faucet.id);
       faucet.rewardCount -=1;
+      await this.userService.setAutoRewards(user.id);
       console.log('count - 1')
       await this.autofaucetRepository.save(faucet);
     };
