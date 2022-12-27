@@ -14,6 +14,7 @@ import { Autofaucet } from '../autofaucets/entities/autofaucet.entity';
 import { AutofaucetsService } from '../autofaucets/autofaucets.service';
 import { ActivateByEnergyDto } from '../autofaucets/dto/activate-by-energy.dto';
 import { getAutoSettings } from '../settings/autofaucet.settings';
+import { SchedulerRegistry } from '@nestjs/schedule';
 
 @Injectable()
 export class UsersService {
@@ -26,7 +27,17 @@ export class UsersService {
   @Inject(AutofaucetsService)
   private readonly autofaucetService:AutofaucetsService;
 
+  @Inject(SchedulerRegistry)
+  private schedulerRegistry: SchedulerRegistry;
+
   constructor(@InjectRepository(User) private userRepository: Repository<User>) {
+  }
+
+  async onApplicationBootstrap(){//
+    console.log('Set all handfaucet timeouts')
+    await this.handfaucetService.setAllTimeouts();
+    console.log('Set all autofaucet timeouts')
+    await this.autofaucetService.setAllTimeouts();
   }
 
   async create(createUserDto: CreateUserDto) {

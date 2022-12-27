@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Handfaucet } from './entities/handfaucet.entity';
-import { Repository } from 'typeorm';
+import { IsNull, Not, Repository } from 'typeorm';
 import { FaucetLevelEvent } from './events/faucet-level.event';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { SchedulerRegistry } from '@nestjs/schedule';
@@ -14,6 +14,27 @@ export class HandfaucetsService {
               private schedulerRegistry: SchedulerRegistry) {
   }
 
+  async setAllTimeouts(){
+    const timingFaucets = await this.findAllTiming();
+    for (let i = 0; i < timingFaucets.length; i++) {
+      const faucet:Handfaucet = timingFaucets[0];
+
+      const name = `${faucet.id}.removeHandFaucetTimeStart`;
+      const faucetStart = new Date(faucet!.timerStart);
+      const now = new Date();
+      now.setMilliseconds(0);
+      const diff = now.getTime() - faucetStart.getTime();
+      const milliseconds = (faucet.timerAmount * 60000) - diff;
+
+      const callback = async() => {
+        await this.removeTimerCallback(faucet,name,milliseconds);
+      };
+
+      const timeout = setTimeout(callback, milliseconds);
+      this.schedulerRegistry.addTimeout(name, timeout);
+    }
+  }
+
   async create() {
     const newFaucet = await this.handfaucetRepository.create();
     return this.handfaucetRepository.save(newFaucet);
@@ -21,6 +42,14 @@ export class HandfaucetsService {
 
   findAll() {
     return this.handfaucetRepository.find();
+  }
+
+  async findAllTiming() {
+    return this.handfaucetRepository.find({
+      where:{
+        timerStart:Not(IsNull()),
+      }
+    });
   }
 
   findOne(id: number) {
@@ -58,17 +87,18 @@ export class HandfaucetsService {
     return await this.handfaucetRepository.save(faucet);
   }
 
+  async removeTimerCallback(faucet:Handfaucet, name:string, milliseconds:number){
+    await this.removeTimeStart(faucet);
+    this.schedulerRegistry.deleteTimeout(name);
+    console.log(`Timeout ${name} executing after (${milliseconds})!`);
+  }
+
   addRemoveTimerTimeout(faucet:Handfaucet) {
     const name = `${faucet.id}.removeHandFaucetTimeStart`;
     const milliseconds = faucet.timerAmount * 60000;
-    // const doesExist = this.schedulerRegistry.doesExist("timeout",name);
-    // if(doesExist) this.schedulerRegistry.deleteTimeout(name);
     const callback = async() => {
-      await this.removeTimeStart(faucet);
-      this.schedulerRegistry.deleteTimeout(name);
-      console.log(`Timeout ${name} executing after (${milliseconds})!`);
+      this.removeTimerCallback(faucet,name,milliseconds);
     };
-
     const timeout = setTimeout(callback, milliseconds);
     this.schedulerRegistry.addTimeout(name, timeout);
   }
