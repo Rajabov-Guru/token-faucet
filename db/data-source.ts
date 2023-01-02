@@ -9,6 +9,7 @@ export const dataSourceOptions:DataSourceOptions = {
   database: 'faucet',
   entities:['dist/**/*.entity.js'],
   migrations:['dist/db/migrations/*.js'],
+  // logging:true
 }
 
 const dataSource = new DataSource(dataSourceOptions);

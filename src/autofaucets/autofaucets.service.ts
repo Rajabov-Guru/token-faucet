@@ -3,11 +3,13 @@ import { Autofaucet } from './entities/autofaucet.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Not, Repository } from 'typeorm';
 import { ActivateByEnergyDto } from './dto/activate-by-energy.dto';
-import { autoFaucetGeneralSettings } from '../settings/autofaucet.settings';
+import { getAutoSettings } from '../settings/autofaucet.settings';
 import { SchedulerRegistry } from '@nestjs/schedule';
-import { AutofaucetLevelEvent } from './events/autofaucet-level.event';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { UsersService } from '../users/users.service';
+import { NotificationsService } from '../events/notifications.service';
+import { SetSubscriptionDto } from './dto/set-subscription.dto';
+import { User } from '../users/entities/user.entity';
+import { Handfaucet } from '../handfaucets/entities/handfaucet.entity';
 
 @Injectable()
 export class AutofaucetsService {
@@ -17,11 +19,11 @@ export class AutofaucetsService {
   @Inject(forwardRef(()=>UsersService))
   private readonly userService:UsersService;
 
-  @Inject(EventEmitter2)
-  private eventEmitter: EventEmitter2;
-
   @Inject(SchedulerRegistry)
   private schedulerRegistry: SchedulerRegistry;
+
+  @Inject(NotificationsService)
+  private readonly notificationsService: NotificationsService;
 
   constructor() {
   }
@@ -31,7 +33,7 @@ export class AutofaucetsService {
     for (let i = 0; i < timingFaucets.length; i++) {
       const faucet:Autofaucet = timingFaucets[0];
 
-      const name = `${faucet.id}.removeHandFaucetTimeStart`;
+      const name = `${faucet.id}.getRewardTimeout`;
       const faucetStart = new Date(faucet!.timerStart);
       const now = new Date();
       now.setMilliseconds(0);
@@ -39,7 +41,7 @@ export class AutofaucetsService {
       const milliseconds = (faucet.timerAmount * 60000) - diff;
 
       const callback = async() => {
-        await this.rewardTimeoutCallback(faucet,name,milliseconds);
+        await this.rewardTimeoutCallback(faucet.id,name);
       };
 
       const timeout = setTimeout(callback, milliseconds);
@@ -47,7 +49,13 @@ export class AutofaucetsService {
     }
   }
 
-  findAll() {
+  async create(user:User){
+    const autofaucet = new Autofaucet();
+    autofaucet.user = user;
+    return await this.autofaucetRepository.save(autofaucet);
+  }
+
+  async findAll() {
     return this.autofaucetRepository.find();
   }
 
@@ -81,60 +89,119 @@ export class AutofaucetsService {
   async addSatoshi(id:number, satoshi:number){
     let faucet = await this.autofaucetRepository.findOne({where:{id},relations:{user:true}});
     faucet.satoshi += satoshi;
-    faucet.clicks+=1;
+    faucet.clicks = faucet.clicks+1;
     let saved = await this.autofaucetRepository.save(faucet);
-    const faucetEvent = new AutofaucetLevelEvent();
-    faucetEvent.autofaucetId = faucet.id;
-    faucetEvent.userId = faucet.user.id;
-    this.eventEmitter.emit('autofaucet.addSatoshi', faucetEvent);
     return saved;
   }
 
-  async activateByEnergy(dto:ActivateByEnergyDto){
-    const faucet = await this.findOne(dto.id);
-    const secondsForOneSatoshi = autoFaucetGeneralSettings.secondsForOneSatoshi;
-    const seconds = dto.energy * secondsForOneSatoshi;
+  async checkLevel(faucetId:number){
+    const faucet = await this.findOne(faucetId);
+    const nextLevel = faucet.level+1;
+    const settings = getAutoSettings(nextLevel);
+    if(faucet.clicks >= settings.requiredClicks){
+      faucet.level = settings.level;
+      await this.autofaucetRepository.save(faucet);
+      return true;
+    }
+    return false;
+  }
+
+  async setSubscription(dto:SetSubscriptionDto){
+    let faucet = await this.autofaucetRepository.findOne({where:{id:dto.autofaucetId},relations:{user:true}});
+    // const now = new Date();
+    // now.setMilliseconds(0);
+    // faucet.subscriptionStart = now;
+    faucet.subscriptionMonth = dto.months;
+    faucet.subscription = true;
+    faucet = await this.autofaucetRepository.save(faucet);
+    return faucet;
+  }
+
+  async checkDelayedSubscription(faucet:Autofaucet, user:User){
+    if(faucet.subscription && !faucet.subscriptionStart){
+      await this.userService.activateAutofaucetSubscription(user.id,faucet.id);
+    }
+    else if(faucet.subscription && faucet.subscriptionStart){
+      await this.removeSubscription(faucet.id);
+    }
+  }
+
+  async activateSubscription(faucetId:number){
+    const faucet = await this.findOne(faucetId);
+    if(faucet.activated) return false;
+    else{
+      const days = faucet.subscriptionMonth * 30;
+      const hours = days * 24;
+      const minutes = hours * 60;
+      const cycles = Math.floor(minutes/faucet.timerAmount);
+
+      await this.activateAutofaucet(faucet.id,cycles,true);
+      return true;
+    }
+  }
+
+  async activateAutofaucet(faucetId:number, cycles:number, subs:boolean=false){
+    const faucet = await this.findOne(faucetId);
+    const seconds = (cycles * faucet.timerAmount*60);
     const now = new Date();
     now.setMilliseconds(0);
     faucet.timerStart = now;
+    faucet.activatedStart = now;
     faucet.activated = true;
-    const count = Math.floor(seconds/(faucet.timerAmount*60));
-    faucet.rewardCount = count;
+    faucet.activatedTime = seconds;
+    faucet.rewardCount = cycles;
+    if(subs) faucet.subscriptionStart = now;
     const saved = this.autofaucetRepository.save(faucet);
-    this.addRewardTimeouts(faucet);
+    await this.addRewardTimeouts(faucet.id);
     return saved;
   }
 
-  async rewardTimeoutCallback(faucet:Autofaucet, name:string, milliseconds:number){
+  async deActivateAutofaucet(faucetId:number){
+    let faucet = await this.findOne(faucetId);
+    faucet.timerStart = null;
+    faucet.activated = false;
+    faucet.activatedStart = null;
+    faucet.activatedTime = 0;
+    faucet.rewardCount = 0;
+    return await this.autofaucetRepository.save(faucet);
+  }
+
+  async rewardTimeoutCallback(faucetId:number, name:string){
+    let faucet = await this.findOne(faucetId);
     const user = await this.getUser(faucet.id);
     faucet.rewardCount -=1;
-    await this.userService.setAutoRewards(user.id);
-    console.log('count - 1')
+    faucet.spentTime += faucet.timerAmount;
     faucet = await this.autofaucetRepository.save(faucet);
+    await this.userService.setAutoRewards(user.id);
 
     if(faucet.rewardCount===0) {
-      await this.removeTimeStart(faucet);
-      this.schedulerRegistry.deleteInterval(name);
+      const doesExist = this.schedulerRegistry.doesExist('timeout',name);
+      if(doesExist) this.schedulerRegistry.deleteTimeout(name);
+
+      const saved = await this.deActivateAutofaucet(faucet.id);
+      await this.checkDelayedSubscription(saved,user);
       return;
     }
 
     const callback = async() => {
-      await this.rewardTimeoutCallback(faucet,name,milliseconds);
+      await this.rewardTimeoutCallback(faucetId,name);
     };
 
+    const nextMilliseconds = faucet.timerAmount * 60000;
     this.schedulerRegistry.deleteTimeout(name);
-    const nextTimeout = setTimeout(callback, milliseconds);
+    const nextTimeout = setTimeout(callback, nextMilliseconds);
     this.schedulerRegistry.addTimeout(name,nextTimeout);
-    await this.setTimeStart(faucet);
-    console.log(`2_Timeout ${name} set in (${milliseconds})!`);
+    await this.setTimeStart(faucet.id);
+    console.log(`2_Timeout ${name} set in (${nextMilliseconds})!`);
   }
 
-  addRewardTimeouts(faucet:Autofaucet){
+  async addRewardTimeouts(faucetId:number){
+    let faucet = await this.findOne(faucetId);
     const milliseconds = faucet.timerAmount*60000;
-    const name = `${faucet.id}.getRewardInterval`;
+    const name = `${faucet.id}.getRewardTimeout`;
 
     const callback = async() => {
-      await this.rewardTimeoutCallback(faucet,name,milliseconds);
+      await this.rewardTimeoutCallback(faucet.id,name);
     };
 
     const nextTimeout = setTimeout(callback, milliseconds);
@@ -142,18 +209,20 @@ export class AutofaucetsService {
     console.log(`Timeout ${name} set in (${milliseconds})!`);
   }
 
-  async setTimeStart(faucet:Autofaucet){
+  async setTimeStart(faucetId:number){
+    let faucet = await this.findOne(faucetId);
     const now = new Date();
     now.setMilliseconds(0);
     faucet.timerStart = now;
     return await this.autofaucetRepository.save(faucet);
   }
 
-  async removeTimeStart(faucet:Autofaucet){
-    faucet.timerStart = null;
-    faucet.activated = false;
+  async removeSubscription(faucetId:number){
+    let faucet = await this.findOne(faucetId);
+    faucet.subscriptionStart = null;
+    faucet.subscriptionMonth = 0;
+    faucet.subscription = false;
     return await this.autofaucetRepository.save(faucet);
   }
-
 
 }

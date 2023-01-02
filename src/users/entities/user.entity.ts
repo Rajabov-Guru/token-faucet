@@ -4,11 +4,8 @@ import {
   PrimaryGeneratedColumn,
   OneToOne,
   ManyToMany,
-  JoinTable,
-  JoinColumn,
   CreateDateColumn, ManyToOne, OneToMany,
 } from 'typeorm';
-import { Bonus } from '../../bonuses/entities/bonus.entity';
 import { Balance } from '../../balances/entities/balance.entity';
 import { Handfaucet } from '../../handfaucets/entities/handfaucet.entity';
 import Token from '../../auth/entities/token.entity';
@@ -40,6 +37,9 @@ export class User {
   @Column({default:false})
   isReferal: boolean;
 
+  @Column({default:false})
+  isLoyal: boolean;
+
   @Column({default:1})
   level: number;
 
@@ -63,8 +63,5 @@ export class User {
 
   @OneToOne(()=>Autofaucet,autofaucet=>autofaucet.user,{cascade:true })
   autofaucet: Autofaucet;
-
-  @ManyToMany(() => Bonus,{cascade:true })
-  bonuses: Bonus[]
 
 }

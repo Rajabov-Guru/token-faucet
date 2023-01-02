@@ -1,4 +1,4 @@
 export class ActivateByEnergyDto{
   id:number;
-  energy:number;
+  cycles:number;
 }

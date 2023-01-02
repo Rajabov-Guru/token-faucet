@@ -7,9 +7,13 @@ import { BalancesModule } from '../balances/balances.module';
 import { HandfaucetsModule } from '../handfaucets/handfaucets.module';
 import { AuthModule } from '../auth/auth.module';
 import { AutofaucetsModule } from '../autofaucets/autofaucets.module';
+import { EventsModule } from '../events/events.module';
+import { NotificationsService } from '../events/notifications.service';
+import { UserEventsListener } from './listeners/user-events.listener';
 
 @Module({
   imports:[
+    EventsModule,
     forwardRef(()=>AuthModule),
     forwardRef(()=>AutofaucetsModule),
     TypeOrmModule.forFeature([User]),
@@ -17,7 +21,7 @@ import { AutofaucetsModule } from '../autofaucets/autofaucets.module';
     HandfaucetsModule],
 
   controllers: [UsersController],
-  providers: [UsersService],
+  providers: [UsersService,NotificationsService, UserEventsListener],
   exports:[UsersService]
 })
 export class UsersModule {}

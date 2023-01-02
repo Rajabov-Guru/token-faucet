@@ -19,6 +19,15 @@ export const getAutoSettings = (level:number)=>{
   return autofaucetSettings.filter(set=>set.level===level)[0];
 }
 
+export const getSubscriptionDiscount = (monthCount:number):number | null =>{
+  const filterResult = DiscountOnSubscription.filter(dis=>dis.monthCount === monthCount);
+  if(filterResult.length){
+    const item = filterResult[0];
+    return item.discount;
+  }
+  return null;
+}
+
 interface SubscriptionDiscount{
   monthCount:number;
   discount:number;

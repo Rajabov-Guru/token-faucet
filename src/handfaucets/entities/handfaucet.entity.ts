@@ -9,9 +9,6 @@ export class Handfaucet {
   @Column({default:1})
   level:number;
 
-  @Column({default:false})
-  vip:boolean;
-
   @Column({default:null, nullable:true})
   timerStart:Date;
 
@@ -26,6 +23,21 @@ export class Handfaucet {
 
   @Column({default:0})
   energy:number;
+
+  @Column({default:false})
+  vip:boolean;
+
+  @Column({default:0})
+  vipActivatedTime:number;
+
+  @Column({default:null, nullable:true})
+  vipStart:Date;
+
+  @Column({default:null, nullable:true})
+  vipRemoveDayStart:Date;
+
+  @Column({default:0})
+  vipDays:number;
 
   @OneToOne(()=>User)
   @JoinColumn()

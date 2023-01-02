@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { HttpException, HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -6,15 +6,13 @@ import { User } from './entities/user.entity';
 import { Repository } from 'typeorm';
 import { BalancesService } from '../balances/balances.service';
 import { HandfaucetsService } from '../handfaucets/handfaucets.service';
-import { Balance } from '../balances/entities/balance.entity';
-import { Handfaucet } from '../handfaucets/entities/handfaucet.entity';
-import { getSettings, handfaucetSettings } from '../settings/faucet.settings';
+import { getSettings, getVipDiscount } from '../settings/faucet.settings';
 import { SetRewardDto } from '../balances/dto/set-reward.dto';
-import { Autofaucet } from '../autofaucets/entities/autofaucet.entity';
 import { AutofaucetsService } from '../autofaucets/autofaucets.service';
-import { ActivateByEnergyDto } from '../autofaucets/dto/activate-by-energy.dto';
-import { getAutoSettings } from '../settings/autofaucet.settings';
+import { autoFaucetGeneralSettings, getAutoSettings, getSubscriptionDiscount } from '../settings/autofaucet.settings';
 import { SchedulerRegistry } from '@nestjs/schedule';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { FaucetEvent } from './events/faucet.event';
 
 @Injectable()
 export class UsersService {
@@ -30,66 +28,58 @@ export class UsersService {
   @Inject(SchedulerRegistry)
   private schedulerRegistry: SchedulerRegistry;
 
+  @Inject(EventEmitter2)
+  private eventEmitter: EventEmitter2;
+
   constructor(@InjectRepository(User) private userRepository: Repository<User>) {
   }
 
-  async onApplicationBootstrap(){//
+  //Действие при старте: Восстановление всех таймоутов
+  async onApplicationBootstrap(){
     console.log('Set all handfaucet timeouts')
     await this.handfaucetService.setAllTimeouts();
     console.log('Set all autofaucet timeouts')
     await this.autofaucetService.setAllTimeouts();
   }
 
+  //Действие:
   async create(createUserDto: CreateUserDto) {
     const newUser = createUserDto as User;
     await this.userRepository.save(newUser);
-
     if(createUserDto.refererLogin){
-      const referer = await this.findByLogin(createUserDto.refererLogin);
-      newUser.referer = referer;
+      newUser.referer = await this.findByLogin(createUserDto.refererLogin);
       newUser.isReferal = true;
       await this.userRepository.save(newUser);
     }
-
-    const balance = new Balance();
-    balance.user = newUser;
-    await this.balanceService.save(balance);
-
-    const handfaucet = new Handfaucet();
-    handfaucet.user = newUser;
-    await this.handfaucetService.save(handfaucet);
-
-    const autofaucet = new Autofaucet();
-    autofaucet.user = newUser;
-    await this.autofaucetService.save(autofaucet);
-
-    //bonuses
+    await this.balanceService.create(newUser);
+    await this.handfaucetService.create(newUser);
+    await this.autofaucetService.create(newUser);
     return this.userRepository.save(newUser);
+  }
 
+  async save(user:User){
+    return this.userRepository.save(user);
+  }
+
+  findOne(id: number) {
+    return this.userRepository.findOneBy({ id });
+  }
+
+  findByEmail(email:string){
+    return this.userRepository.findOneBy({email});
+  }
+
+  findByLogin(login:string){
+    return this.userRepository.findOneBy({login});
+  }
+
+  async update(id: number, updateUserDto: UpdateUserDto) {
+    const user = await this.findOne(id);
+    return this.userRepository.save({...user, ...updateUserDto});
   }
 
   async findAll() {
     return this.userRepository.find();
-  }
-
-  async getReferer(id:number){
-    const user = await this.userRepository.findOne({
-      where:{id},
-      relations:{
-        referer:true
-      }
-    });
-    return user.referer;
-  }
-
-  async getReferals(id:number){
-    const user = await this.userRepository.findOne({
-      where:{id},
-      relations:{
-        referals:true
-      }
-    });
-    return user.referals;
   }
 
   async getBalance(id:number){
@@ -112,31 +102,22 @@ export class UsersService {
     return user.handfaucet;
   }
 
-  async getAutoFaucet(id:number){
+  async checkLoyal(userId:number){
     const user = await this.userRepository.findOne({
-      where:{id},
+      where:{id:userId},
       relations:{
-        autofaucet:true
+        handfaucet:true,
+        autofaucet:true,
       }
     });
-    return user.autofaucet;
-  }
-
-  async activateAutoFaucetByEnergy(userId:number){
-    const user = await this.userRepository.findOne({
-      where: {
-        id:userId
-      },
-      relations:{
-          balance:true,
-          autofaucet:true,
-      }
-    });
-
-    const energy = user.balance.energy;
-    user.balance.energy = 0;
-    await this.balanceService.save(user.balance);
-    return this.autofaucetService.activateByEnergy({id:user.autofaucet.id,energy});
+    if(user.autofaucet.activated && user.handfaucet.level >= 3){
+      user.isLoyal = true;
+      return true;
+    }
+    else{
+      user.isLoyal = false;
+      return false;
+    }
   }
 
   async setRewards(id:number){
@@ -157,7 +138,10 @@ export class UsersService {
     const rewards = settings.rewards;
 
     const bonuses = rewards.levelBonus;
-    const base = rewards.base;
+    let base = rewards.base;
+    if(handfaucet.vip){//VIP
+      base*=2;
+    }
     const experience = rewards.experience;
     const energy = rewards.energy;
     const satoshi = 0;
@@ -173,9 +157,103 @@ export class UsersService {
     }
     const res = await this.balanceService.setRewards(balance.id,data);
     await this.handfaucetService.addTokens(handfaucet.id,tokens,energy);
+
+    const userEvent = new FaucetEvent(handfaucet.id, user.id);
+    this.eventEmitter.emit('handfaucet_add_tokens', userEvent);
     return res;
   }
 
+  async buyVip(userId:number,months:number){
+    const user = await this.userRepository.findOne({
+      where:{
+        id:userId
+      },
+      relations:{
+        handfaucet:true,
+        balance:true,
+      }
+    });
+
+    const balance = user.balance;
+    const handfaucet = user.handfaucet;
+
+    const settings = getSettings(handfaucet.level);
+    const vipCost = settings.vipCost;
+    const discount = getVipDiscount(months);
+    const diff = vipCost * (discount/100);
+    const cost = vipCost - diff;
+
+    await this.balanceService.minusSatoshi(balance.id,cost);
+
+    await this.handfaucetService.setVip(handfaucet.id,months);
+
+  }
+
+  async getAutoFaucet(id:number){
+    const user = await this.userRepository.findOne({
+      where:{id},
+      relations:{
+        autofaucet:true
+      }
+    });
+    return user.autofaucet;
+  }
+
+  async subscribeAutoFaucet(id:number, months:number){
+    const user = await this.userRepository.findOne({
+      where:{id},
+      relations:{
+        autofaucet:true,
+        balance:true,
+      }
+    })
+    let autofaucet = user.autofaucet;
+    const balance = user.balance;
+
+    const settings = getAutoSettings(autofaucet.level);
+    const discount = getSubscriptionDiscount(months);
+    const diff = settings.subscriptionCost * (discount/100);
+    const cost = settings.subscriptionCost - diff;
+
+    await this.balanceService.minusSatoshi(balance.id,cost);
+    console.log(`cost: ${cost}`);
+
+    autofaucet = await this.autofaucetService.setSubscription({autofaucetId:autofaucet.id,months:months});
+    await this.activateAutofaucetSubscription(user.id,autofaucet.id);
+    return autofaucet;
+  }
+
+  async activateAutofaucetSubscription(userId:number,autofaucetId:number){
+    const userEvent = new FaucetEvent(userId,autofaucetId);
+    this.eventEmitter.emit('autofaucet_subscription_activate',userEvent);
+  }
+
+  async activateAutoFaucetByEnergy(userId:number){
+    const user = await this.userRepository.findOne({
+      where: {
+        id:userId
+      },
+      relations:{
+          balance:true,
+          autofaucet:true,
+      }
+    });
+
+    const oneCycleEnergy = Math.floor((user.autofaucet.timerAmount*60)/autoFaucetGeneralSettings.secondsForOneSatoshi);
+    const cycles = Math.floor(user.balance.energy/oneCycleEnergy);
+    if(cycles<=0){
+      throw new HttpException('Not enough energy',HttpStatus.BAD_REQUEST);
+    }
+    const energy = cycles*oneCycleEnergy;
+    console.log(`
+      oneCycleEnergy:${oneCycleEnergy}
+      cycles: ${cycles}
+      energy: ${energy}
+    `);
+    await this.balanceService.minusEnergy(user.balance.id,energy);
+    await this.autofaucetService.activateAutofaucet(user.autofaucet.id,cycles, false);
+    return user;
+  }
 
   async setAutoRewards(id:number){
     const user = await this.userRepository.findOne({
@@ -211,6 +289,7 @@ export class UsersService {
     }
     const res = await this.balanceService.setRewards(balance.id,data);
     await this.autofaucetService.addSatoshi(autofaucet.id,satoshi);
+    this.eventEmitter.emit('autofaucet_add_satoshi',new FaucetEvent(user.id,autofaucet.id));
     return res;
   }
 
@@ -224,25 +303,24 @@ export class UsersService {
     return user.token;
   }
 
-  findOne(id: number) {
-    return this.userRepository.findOneBy({ id });
+  async getReferer(id:number){
+    const user = await this.userRepository.findOne({
+      where:{id},
+      relations:{
+        referer:true
+      }
+    });
+    return user.referer;
   }
 
-  findByEmail(email:string){
-    return this.userRepository.findOneBy({email});
-  }
-
-  findByLogin(login:string){
-    return this.userRepository.findOneBy({login});
-  }
-
-  async update(id: number, updateUserDto: UpdateUserDto) {
-    const user = await this.findOne(id);
-    return this.userRepository.save({...user, ...updateUserDto});
-  }
-
-  async save(user:User){
-    return this.userRepository.save(user);
+  async getReferals(id:number){
+    const user = await this.userRepository.findOne({
+      where:{id},
+      relations:{
+        referals:true
+      }
+    });
+    return user.referals;
   }
 
 }

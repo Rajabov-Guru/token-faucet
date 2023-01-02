@@ -13,7 +13,7 @@ export class Autofaucet {
   spentTime:number;
 
   @Column({default:0})
-  timeBalance:number
+  timeBalance:number;
 
   @Column({default:null, nullable:true})
   timerStart:Date;
@@ -32,6 +32,21 @@ export class Autofaucet {
 
   @Column({default:false})
   activated:boolean;
+
+  @Column({default:0})
+  activatedTime:number;
+
+  @Column({default:null, nullable:true})
+  activatedStart:Date;
+
+  @Column({default:false})
+  subscription:boolean;
+
+  @Column({default:0})
+  subscriptionMonth:number;
+
+  @Column({default:null, nullable:true})
+  subscriptionStart:Date;
 
   @OneToOne(()=>User)
   @JoinColumn()

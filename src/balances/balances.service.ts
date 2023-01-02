@@ -1,10 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Balance } from './entities/balance.entity';
 import { Repository } from 'typeorm';
 import { SetRewardDto } from './dto/set-reward.dto';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { BalanceRewardsEvent } from './events/balance-rewards.event';
+import { User } from '../users/entities/user.entity';
 
 @Injectable()
 export class BalancesService {
@@ -13,9 +14,10 @@ export class BalancesService {
               private eventEmitter: EventEmitter2) {
   }
 
-  async create(){
-    const newBalance = await this.balanceRepository.create();
-    return this.balanceRepository.save(newBalance);
+  async create(user:User){
+    const balance = new Balance();
+    balance.user = user;
+    return this.balanceRepository.save(balance);
   }
 
   async findAll() {
@@ -50,5 +52,28 @@ export class BalancesService {
     this.eventEmitter.emit('balance.rewards',balanceRewards);
 
     return this.balanceRepository.save(balance);
+  }
+
+  async minusSatoshi(balanceId:number,satoshi:number){
+    const balance = await this.balanceRepository.findOneBy({id:balanceId});
+    if(balance.satoshi>=satoshi){
+      balance.satoshi -= satoshi;
+      return await this.balanceRepository.save(balance);
+    }
+    else{
+      throw new HttpException('Not enough satoshi', HttpStatus.BAD_REQUEST);
+    }
+  }
+
+  async minusEnergy(balanceId:number,energy:number){
+    const balance = await this.balanceRepository.findOneBy({id:balanceId});
+    if(balance.energy>=energy){
+      balance.energy -= energy;
+      return await this.balanceRepository.save(balance);
+    }
+    else{
+      throw new HttpException('Not enough energy', HttpStatus.BAD_REQUEST);
+    }
+
   }
 }

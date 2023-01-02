@@ -1,18 +1,20 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Handfaucet } from './entities/handfaucet.entity';
 import { IsNull, Not, Repository } from 'typeorm';
-import { FaucetLevelEvent } from './events/faucet-level.event';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { SchedulerRegistry } from '@nestjs/schedule';
+import { User } from '../users/entities/user.entity';
+import { getSettings } from '../settings/faucet.settings';
 
 @Injectable()
 export class HandfaucetsService {
+  @InjectRepository(Handfaucet)
+  private readonly handfaucetRepository:Repository<Handfaucet>;
 
-  constructor(@InjectRepository(Handfaucet) private readonly handfaucetRepository:Repository<Handfaucet>,
-              private eventEmitter: EventEmitter2,
-              private schedulerRegistry: SchedulerRegistry) {
-  }
+  @Inject(SchedulerRegistry)
+  private schedulerRegistry: SchedulerRegistry;
+
+  constructor() {}
 
   async setAllTimeouts(){
     const timingFaucets = await this.findAllTiming();
@@ -33,11 +35,33 @@ export class HandfaucetsService {
       const timeout = setTimeout(callback, milliseconds);
       this.schedulerRegistry.addTimeout(name, timeout);
     }
+
+    const vipFaucets = await this.findAllWithVip();
+    console.log(`vipFaucets.length: ${vipFaucets.length}`);
+    for (let i = 0; i < vipFaucets.length; i++) {
+      const faucet:Handfaucet = vipFaucets[0];
+
+      const name = `${faucet.id}.removeHandFaucetVipDay`;
+      const faucetStart = new Date(faucet!.vipRemoveDayStart);
+      const now = new Date();
+      now.setMilliseconds(0);
+      const diff = now.getTime() - faucetStart.getTime();
+      const milliseconds = (60000) - diff;  //one minute   потом поменять на 86400000 (1 день)
+
+      const callback = async() => {
+        await this.removeVipDayTimeoutCallback(faucet.id,name);
+      };
+
+      const timeout = setTimeout(callback, milliseconds);
+      this.schedulerRegistry.addTimeout(name, timeout);
+    }
+
   }
 
-  async create() {
-    const newFaucet = await this.handfaucetRepository.create();
-    return this.handfaucetRepository.save(newFaucet);
+  async create(user:User) {
+    const handfaucet = new Handfaucet();
+    handfaucet.user = user;
+    return this.handfaucetRepository.save(handfaucet);
   }
 
   findAll() {
@@ -52,11 +76,44 @@ export class HandfaucetsService {
     });
   }
 
+  async findAllWithVip(){
+    return this.handfaucetRepository.find({
+      where:{
+        vip:true,
+      }
+    });
+  }
+
   findOne(id: number) {
     return this.handfaucetRepository.findOneBy({id});
   }
 
   save(handfaucet:Handfaucet){
+    return this.handfaucetRepository.save(handfaucet);
+  }
+
+  async setVip(faucetId:number, months:number){
+    const handfaucet = await this.findOne(faucetId);
+    const now = new Date();
+    now.setMilliseconds(0);
+    handfaucet.vipStart = now;
+    handfaucet.vipRemoveDayStart = now;
+    handfaucet.vipDays = months * 30;
+    const hours = handfaucet.vipDays * 24;
+    handfaucet.vipActivatedTime = hours*60;
+    handfaucet.vip = true;
+    const saved  = await this.handfaucetRepository.save(handfaucet);
+    await this.addRemoveVipDayTimeout(handfaucet.id);
+    return saved;
+  }
+
+  async removeVip(faucetId:number){
+    const handfaucet = await this.findOne(faucetId);
+    handfaucet.vipStart = null;
+    handfaucet.vipRemoveDayStart = null;
+    handfaucet.vipDays = 0;
+    handfaucet.vipActivatedTime = 0;
+    handfaucet.vip = false;
     return this.handfaucetRepository.save(handfaucet);
   }
 
@@ -67,18 +124,33 @@ export class HandfaucetsService {
     handfaucet.clicks+=1;
     handfaucet = await this.setTimeStart(handfaucet);
     let saved = await this.handfaucetRepository.save(handfaucet);
-    const faucetEvent = new FaucetLevelEvent();
-    faucetEvent.faucetId = handfaucet.id;
-    faucetEvent.userId = handfaucet.user.id;
-    this.eventEmitter.emit('faucet.addTokens', faucetEvent);
     this.addRemoveTimerTimeout(saved);
     return saved;
+  }
+
+  async checkLevel(faucetId:number){
+    const faucet = await this.findOne(faucetId);
+    const nextLevel = faucet.level+1;
+    const settings = getSettings(nextLevel);
+    if(faucet.clicks >= settings.requiredClicks){
+      faucet.level = settings.level;
+      await this.handfaucetRepository.save(faucet);
+      return true;
+    }
+    return false;
   }
 
   async setTimeStart(faucet:Handfaucet){
     const now = new Date();
     now.setMilliseconds(0);
     faucet.timerStart = now;
+    return await this.handfaucetRepository.save(faucet);
+  }
+
+  async setRemoveVipDayStart(faucet:Handfaucet){
+    const now = new Date();
+    now.setMilliseconds(0);
+    faucet.vipRemoveDayStart = now;
     return await this.handfaucetRepository.save(faucet);
   }
 
@@ -97,8 +169,49 @@ export class HandfaucetsService {
     const name = `${faucet.id}.removeHandFaucetTimeStart`;
     const milliseconds = faucet.timerAmount * 60000;
     const callback = async() => {
-      this.removeTimerCallback(faucet,name,milliseconds);
+      await this.removeTimerCallback(faucet,name,milliseconds);
     };
+    const timeout = setTimeout(callback, milliseconds);
+    this.schedulerRegistry.addTimeout(name, timeout);
+  }
+
+  async removeVipDayTimeoutCallback(faucetId:number, name:string){
+    let faucet = await this.handfaucetRepository.findOneBy({id:faucetId});
+    faucet.vipDays-=1;
+    faucet = await this.handfaucetRepository.save(faucet);
+
+    if(faucet.vipDays===0){
+      await this.removeVip(faucet.id);
+      const doesExist = this.schedulerRegistry.doesExist('timeout',name);
+      if(doesExist){
+        this.schedulerRegistry.deleteTimeout(name);
+      }
+      console.log('Vip is done!');
+      return;
+    }
+
+    this.schedulerRegistry.deleteTimeout(name);
+
+    await this.setRemoveVipDayStart(faucet);
+
+    const callback = async()=>{
+      await this.removeVipDayTimeoutCallback(faucet.id,name);
+    }
+    const nextMilliseconds = 60000;//one minute   потом поменять на 86400000 (1 день)...
+    const nextTimeout = setTimeout(callback, nextMilliseconds);
+    this.schedulerRegistry.addTimeout(name,nextTimeout);
+    console.log(`VIP_Timeout ${name} set in (${nextMilliseconds})!`);
+  }
+
+  async addRemoveVipDayTimeout(faucetId:number){
+    const faucet = await this.handfaucetRepository.findOneBy({id:faucetId});
+    const name = `${faucet.id}.removeHandFaucetVipDay`;
+    const milliseconds = 60000; //one minute   потом поменять на 86400000 (1 день)
+
+    const callback = async() => {
+      await this.removeVipDayTimeoutCallback(faucet.id,name);
+    };
+
     const timeout = setTimeout(callback, milliseconds);
     this.schedulerRegistry.addTimeout(name, timeout);
   }

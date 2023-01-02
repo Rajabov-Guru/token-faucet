@@ -21,6 +21,15 @@ export const getSettings = (level:number)=>{
   return handfaucetSettings.filter(set=>set.level===level)[0];
 }
 
+export const getVipDiscount = (monthCount:number):number | null =>{
+  const filterResult = DiscountOnVIP.filter(dis=>dis.monthCount === monthCount);
+  if(filterResult.length){
+    const item = filterResult[0];
+    return item.discount;
+  }
+  return null;
+}
+
 export const handfaucetSettings:FaucetSetting[] = [
   {
     level:1,

@@ -33,10 +33,31 @@ export class UsersController {
     return faucet;
   }
 
+  @Post(':id/handfaucet/reward')
+  async setReward(@Param('id') id: string){
+    const res = await this.usersService.setRewards(+id);
+    return res;
+  }
+
+  @Post(':id/handfaucet/vip/:months')
+  async buyVip(@Param('id') id: string, @Param('months') months: string){
+    return await this.usersService.buyVip(+id,+months);
+  }
+
   @Get(':id/autofaucet')
   async getAutoFaucet(@Param('id') id: string) {
     const faucet = await this.usersService.getAutoFaucet(+id)
     return faucet;
+  }
+
+  @Post(':id/autofaucet/activate')
+  async activateAutoFaucetByEnergy(@Param('id') id: string){
+    return this.usersService.activateAutoFaucetByEnergy(+id);
+  }
+
+  @Post(':id/autofaucet/subscribe/:months')
+  async subscribe(@Param('id') id: string, @Param('months') months: string){
+    return this.usersService.subscribeAutoFaucet(+id,+months);
   }
 
   @Get(':id/referer')
@@ -49,17 +70,6 @@ export class UsersController {
   async getReferals(@Param('id') id: string) {
     const referals = await this.usersService.getReferals(+id);
     return referals;
-  }
-
-  @Post(':id/reward')
-  async setReward(@Param('id') id: string){
-    const res = await this.usersService.setRewards(+id);
-    return res;
-  }
-
-  @Post(':id/autofaucet/activate')
-  async activateAutoFaucetByEnergy(@Param('id') id: string){
-    return this.usersService.activateAutoFaucetByEnergy(+id);
   }
 
 
