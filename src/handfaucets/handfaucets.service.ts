@@ -29,7 +29,7 @@ export class HandfaucetsService {
       const milliseconds = (faucet.timerAmount * 60000) - diff;
 
       const callback = async() => {
-        await this.removeTimerCallback(faucet,name,milliseconds);
+        await this.removeTimerCallback(faucet.id,name,milliseconds);
       };
 
       const timeout = setTimeout(callback, milliseconds);
@@ -122,9 +122,9 @@ export class HandfaucetsService {
     handfaucet.tokens += tokens;
     handfaucet.energy += energy;
     handfaucet.clicks+=1;
-    handfaucet = await this.setTimeStart(handfaucet);
     let saved = await this.handfaucetRepository.save(handfaucet);
-    this.addRemoveTimerTimeout(saved);
+    saved = await this.setTimeStart(handfaucet.id);
+    await this.addRemoveTimerTimeout(saved.id);
     return saved;
   }
 
@@ -132,7 +132,9 @@ export class HandfaucetsService {
     const faucet = await this.findOne(faucetId);
     const nextLevel = faucet.level+1;
     const settings = getSettings(nextLevel);
+    console.log(`clicks: ${faucet.clicks} required: ${settings.requiredClicks}`);
     if(faucet.clicks >= settings.requiredClicks){
+      console.log(`here`);
       faucet.level = settings.level;
       await this.handfaucetRepository.save(faucet);
       return true;
@@ -140,36 +142,41 @@ export class HandfaucetsService {
     return false;
   }
 
-  async setTimeStart(faucet:Handfaucet){
+  async setTimeStart(faucetId:number){
+    const faucet = await this.findOne(faucetId);
     const now = new Date();
     now.setMilliseconds(0);
     faucet.timerStart = now;
     return await this.handfaucetRepository.save(faucet);
   }
 
-  async setRemoveVipDayStart(faucet:Handfaucet){
+  async setRemoveVipDayStart(faucetId:number){
+    const faucet = await this.findOne(faucetId);
     const now = new Date();
     now.setMilliseconds(0);
     faucet.vipRemoveDayStart = now;
     return await this.handfaucetRepository.save(faucet);
   }
 
-  async removeTimeStart(faucet:Handfaucet){
+  async removeTimeStart(faucetId:number){
+    const faucet = await this.findOne(faucetId);
     faucet.timerStart = null;
     return await this.handfaucetRepository.save(faucet);
   }
 
-  async removeTimerCallback(faucet:Handfaucet, name:string, milliseconds:number){
-    await this.removeTimeStart(faucet);
+  async removeTimerCallback(faucetId:number, name:string, milliseconds:number){
+    const faucet = await this.findOne(faucetId);
+    await this.removeTimeStart(faucet.id);
     this.schedulerRegistry.deleteTimeout(name);
     console.log(`Timeout ${name} executing after (${milliseconds})!`);
   }
 
-  addRemoveTimerTimeout(faucet:Handfaucet) {
+  async addRemoveTimerTimeout(faucetId:number) {
+    const faucet = await this.findOne(faucetId);
     const name = `${faucet.id}.removeHandFaucetTimeStart`;
     const milliseconds = faucet.timerAmount * 60000;
     const callback = async() => {
-      await this.removeTimerCallback(faucet,name,milliseconds);
+      await this.removeTimerCallback(faucet.id,name,milliseconds);
     };
     const timeout = setTimeout(callback, milliseconds);
     this.schedulerRegistry.addTimeout(name, timeout);
@@ -192,7 +199,7 @@ export class HandfaucetsService {
 
     this.schedulerRegistry.deleteTimeout(name);
 
-    await this.setRemoveVipDayStart(faucet);
+    await this.setRemoveVipDayStart(faucet.id);
 
     const callback = async()=>{
       await this.removeVipDayTimeoutCallback(faucet.id,name);

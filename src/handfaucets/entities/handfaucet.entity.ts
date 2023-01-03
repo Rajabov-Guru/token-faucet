@@ -18,7 +18,7 @@ export class Handfaucet {
   @Column({default:0})
   clicks:number;
 
-  @Column({default:0})
+  @Column({type:'double', default:0})
   tokens:number;
 
   @Column({default:0})

@@ -27,7 +27,7 @@ export class Autofaucet {
   @Column({default:0})
   clicks:number;
 
-  @Column({default:0})//
+  @Column({type:'double', default:0})
   satoshi:number;
 
   @Column({default:false})

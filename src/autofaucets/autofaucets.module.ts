@@ -4,17 +4,14 @@ import { AutofaucetsController } from './autofaucets.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Autofaucet } from './entities/autofaucet.entity';
 import { UsersModule } from '../users/users.module';
-import { EventsModule } from '../events/events.module';
-import { NotificationsService } from '../events/notifications.service';
 
 @Module({
   imports:[
-    EventsModule,
     TypeOrmModule.forFeature([Autofaucet]),
     forwardRef(()=>UsersModule),
   ],
   controllers: [AutofaucetsController],
-  providers: [AutofaucetsService,NotificationsService],
+  providers: [AutofaucetsService],
   exports:[AutofaucetsService]
 })
 export class AutofaucetsModule {}

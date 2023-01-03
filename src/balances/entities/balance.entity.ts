@@ -6,10 +6,10 @@ export class Balance {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({default:0})
+  @Column({type:'double', default:0})
   tokens:number;
 
-  @Column({default:0})
+  @Column({type:'double', default:0})
   satoshi:number;
 
   @Column({default:0})

@@ -10,12 +10,14 @@ import { AutofaucetsModule } from '../autofaucets/autofaucets.module';
 import { EventsModule } from '../events/events.module';
 import { NotificationsService } from '../events/notifications.service';
 import { UserEventsListener } from './listeners/user-events.listener';
+import { BonusesModule } from '../bonuses/bonuses.module';
 
 @Module({
   imports:[
     EventsModule,
     forwardRef(()=>AuthModule),
     forwardRef(()=>AutofaucetsModule),
+    forwardRef(()=>BonusesModule),
     TypeOrmModule.forFeature([User]),
     BalancesModule,
     HandfaucetsModule],

@@ -10,8 +10,7 @@ import { User } from '../users/entities/user.entity';
 @Injectable()
 export class BalancesService {
 
-  constructor(@InjectRepository(Balance) private balanceRepository:Repository<Balance>,
-              private eventEmitter: EventEmitter2) {
+  constructor(@InjectRepository(Balance) private balanceRepository:Repository<Balance>) {
   }
 
   async create(user:User){
@@ -44,13 +43,6 @@ export class BalancesService {
     balance.experience += data.experience;
     balance.energy += data.energy;
     balance.clicks += data.clicks;
-
-    const user = await this.getUser(balance.id);
-    const balanceRewards = new BalanceRewardsEvent();
-    balanceRewards.userId = user.id;
-    balanceRewards.experience = balance.experience;
-    this.eventEmitter.emit('balance.rewards',balanceRewards);
-
     return this.balanceRepository.save(balance);
   }
 

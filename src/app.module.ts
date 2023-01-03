@@ -10,6 +10,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 import { EventsModule } from './events/events.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { AutofaucetsModule } from './autofaucets/autofaucets.module';
+import { BonusesModule } from './bonuses/bonuses.module';
 
 @Module({
   imports: [
@@ -24,7 +25,8 @@ import { AutofaucetsModule } from './autofaucets/autofaucets.module';
     HandfaucetsModule,
     AuthModule,
     EventsModule,
-    AutofaucetsModule
+    AutofaucetsModule,
+    BonusesModule
   ],
   controllers: [],
   providers: [],

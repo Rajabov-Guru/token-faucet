@@ -13,6 +13,7 @@ import { autoFaucetGeneralSettings, getAutoSettings, getSubscriptionDiscount } f
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { FaucetEvent } from './events/faucet.event';
+import { BonusesService } from '../bonuses/bonuses.service';
 
 @Injectable()
 export class UsersService {
@@ -24,6 +25,9 @@ export class UsersService {
 
   @Inject(AutofaucetsService)
   private readonly autofaucetService:AutofaucetsService;
+
+  @Inject(BonusesService)
+  private readonly bonusesService:BonusesService;
 
   @Inject(SchedulerRegistry)
   private schedulerRegistry: SchedulerRegistry;
@@ -102,6 +106,22 @@ export class UsersService {
     return user.handfaucet;
   }
 
+  async checkLevel(userId:number){
+    const user = await this.userRepository.findOne({
+      where:{id:userId},
+      relations:{
+        balance:true,
+      }
+    });
+    let isLevelUp = Math.floor(user.balance.experience/100)!==user.level-1;
+    if(isLevelUp){
+      user.level +=1;
+      await this.userRepository.save(user);
+      return true;
+    }
+    return false;
+  }
+
   async checkLoyal(userId:number){
     const user = await this.userRepository.findOne({
       where:{id:userId},
@@ -110,14 +130,10 @@ export class UsersService {
         autofaucet:true,
       }
     });
-    if(user.autofaucet.activated && user.handfaucet.level >= 3){
-      user.isLoyal = true;
-      return true;
-    }
-    else{
-      user.isLoyal = false;
-      return false;
-    }
+    let isLoyal = user.autofaucet.activated && user.handfaucet.level >= 3;
+    user.isLoyal = isLoyal;
+    await this.userRepository.save(user);
+    return isLoyal;
   }
 
   async setRewards(id:number){
@@ -137,7 +153,7 @@ export class UsersService {
     const settings = getSettings(handfaucet.level);
     const rewards = settings.rewards;
 
-    const bonuses = rewards.levelBonus;
+    const bonuses = this.bonusesService.getAllHandFaucetBonusesValue(user,handfaucet);
     let base = rewards.base;
     if(handfaucet.vip){//VIP
       base*=2;
@@ -146,15 +162,10 @@ export class UsersService {
     const energy = rewards.energy;
     const satoshi = 0;
     const clicks = 0;
-    const tokens = base+(base / 100 * bonuses)
+    const tokens = base+(base / 100 * bonuses);
+    console.log(`TOKENS: ${tokens}`)
 
-    const data:SetRewardDto={
-      tokens,
-      experience,
-      energy,
-      satoshi,
-      clicks
-    }
+    const data:SetRewardDto={ tokens, experience, energy, satoshi, clicks };
     const res = await this.balanceService.setRewards(balance.id,data);
     await this.handfaucetService.addTokens(handfaucet.id,tokens,energy);
 
@@ -218,7 +229,7 @@ export class UsersService {
     await this.balanceService.minusSatoshi(balance.id,cost);
     console.log(`cost: ${cost}`);
 
-    autofaucet = await this.autofaucetService.setSubscription({autofaucetId:autofaucet.id,months:months});
+    autofaucet = await this.autofaucetService.setSubscription(autofaucet.id,months);
     await this.activateAutofaucetSubscription(user.id,autofaucet.id);
     return autofaucet;
   }
@@ -255,6 +266,10 @@ export class UsersService {
     return user;
   }
 
+  async handleAutofaucetChangeActivated(userId:number){
+    this.eventEmitter.emit('autofaucet_change_activated',userId);
+  }
+
   async setAutoRewards(id:number){
     const user = await this.userRepository.findOne({
       where:{
@@ -272,21 +287,16 @@ export class UsersService {
     const settings = getAutoSettings(autofaucet.level);
     const rewards = settings.rewards;
 
-    const bonuses = rewards.levelBonus;
+    const bonuses = this.bonusesService.getAllAutoFaucetBonusesValue(user, autofaucet);
     const base = rewards.base;
     const experience = rewards.experience;
     const energy = 0;
     const tokens = 0;
     const clicks = 0;
-    const satoshi = base+(base / 100 * bonuses)
+    const satoshi = base+(base / 100 * bonuses);
+    console.log(`SATOSHI: ${satoshi}`)
 
-    const data:SetRewardDto={
-      tokens,
-      experience,
-      energy,
-      satoshi,
-      clicks
-    }
+    const data:SetRewardDto={ tokens, experience, energy, satoshi, clicks };
     const res = await this.balanceService.setRewards(balance.id,data);
     await this.autofaucetService.addSatoshi(autofaucet.id,satoshi);
     this.eventEmitter.emit('autofaucet_add_satoshi',new FaucetEvent(user.id,autofaucet.id));
